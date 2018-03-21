@@ -29,6 +29,8 @@ struct arg_struct{
     int& cwnd;
     int& MSS;
     int& ByteforSampleRTT;
+    double& DevRTT;
+    double& TimeoutInterval;
     double& sampleRTT;
     double& EstimatedRTT;
     int& ssthresh;
@@ -41,14 +43,14 @@ struct arg_struct{
     clock_t& end;
     //int& NextPosSent;
     int a= 0, b = 0, c = 0, d = 0, e = 0, f = 0, i = 0, j = 0, k = 0, l = 0;
-    double g = 0.0, h = 0.0;
+    double g = 0.0, h = 0.0, m = 0.0, n = 0.0;
     clock_t t1 = clock();
     clock_t t2 = clock();
     const char* ch = "";
     arg_struct() :buffer(""), buffer_size(0), LastByteSent(a), total_file_size(k), rwnd(l),
                   LastByteAcked(b), cwnd(c), MSS(d), ByteforSampleRTT(f), phase(ch),
                     sampleRTT(g), EstimatedRTT(h), ssthresh(i), cwndIncrmt(j),
-                    begin(t1), end(t2) {}
+                    begin(t1), end(t2), DevRTT(m), TimeoutInterval(n) {}
 };
 struct header_struct{
     int32_t squnc_number;
@@ -137,7 +139,7 @@ void* receive_data(void *pnt_Args){
         struct header_struct recvg_header;
         extract_Header(buffer, recvg_header, bufsize);
         if (args->LastByteAcked == recvg_header.ack_number){
-            //dupAcks
+            //Fast recovery = dupAcks
             //args->position = args->LastByteAcked;
             args->LastByteSent = args->LastByteAcked;
             if (strcmp(args->phase, "Fast recovery") != 0) {
@@ -147,7 +149,7 @@ void* receive_data(void *pnt_Args){
                 args->cwnd = args->ssthresh + 3 * args->MSS;
                 printf("\nFast recovery \nNumber of transferred packets: %d\n"
                                "Percentage of transferred packets: %d %%\n"
-                               "EstimatedRTT: %1.4f \n",
+                               "EstimatedRTT(mSec): %2.4f \n",
                        args->LastByteAcked / args->MSS, 100 * args->LastByteAcked / args->total_file_size, args->EstimatedRTT);
             }
         }
@@ -158,18 +160,36 @@ void* receive_data(void *pnt_Args){
                 args->cwndIncrmt = args->MSS * int(args->MSS / args->cwnd);
                 printf("\nCongestion avoidance \nNumber of transferred packets: %d\n"
                        "Percentage of transferred packets: %d %% \n"
-                               "EstimatedRTT: %1.4f \n",
+                               "EstimatedRTT(mSec): %2.4f \n",
                        args->LastByteAcked / args->MSS, 100 * args->LastByteAcked / args->total_file_size, args-> EstimatedRTT);
             }
             else if (strcmp(args->phase, "Slow start") == 0){
-                args->cwndIncrmt = args->MSS;
+
             }
             args->LastByteAcked = recvg_header.ack_number;
-            if (args->LastByteAcked == args->ByteforSampleRTT){
-                double end_t = clock();
-                args->sampleRTT = double(end_t - args->sampleRTT) / CLOCKS_PER_SEC;
-                args->EstimatedRTT = 0.875 * args->EstimatedRTT + 0.125 * args->sampleRTT;
+            //printf("\nLastByteAcked %d ByteforSampleRTT %d is equal %d\n", args->LastByteAcked, args->ByteforSampleRTT, (args->LastByteAcked == args->ByteforSampleRTT));
+            if (args->LastByteAcked >= args->ByteforSampleRTT){
+                if (args->LastByteAcked == args->ByteforSampleRTT){
+                    double sampleTime = double(clock() - args->sampleRTT) * 1000 / CLOCKS_PER_SEC;
+                    if (sampleTime >= args->TimeoutInterval) {
+                        args->ssthresh = args->cwnd / 2;
+                        args->phase = "Slow start";
+                        args->cwnd = args->MSS;
+                        args->cwndIncrmt = args->MSS;
+                        printf("\nSlow start \nNumber of transferred packets: %d\n"
+                       "Percentage of transferred packets: %d %% \n"
+                               "EstimatedRTT(mSec): %2.4f \n",
+                       args->LastByteAcked / args->MSS, 100 * args->LastByteAcked / args->total_file_size, args-> EstimatedRTT);
+                    }
+                    else{
+                        args->sampleRTT = sampleTime;
+                        args->EstimatedRTT = 0.875 * args->EstimatedRTT + 0.125 * args->sampleRTT;
+                        args->DevRTT = 0.75 * args->DevRTT + 0.25 * abs(args->sampleRTT - args->EstimatedRTT);
+                        args->TimeoutInterval = args->EstimatedRTT + 4 * args->DevRTT;
+                    }
+                }
                 args->ByteforSampleRTT = 0;
+                //printf("\n%s\n", "update EstimatedRTT");
             }
         }
         args->cwnd += args->cwndIncrmt;
@@ -199,9 +219,12 @@ void send_File(void *pnt_Args, const char* pntFilePath, struct header_struct& re
         args->MSS = 1500 - 68 - headerSize;
         args->ssthresh = 64000;
         args->cwnd = args->MSS;
+        args->EstimatedRTT = 2;
+        args->TimeoutInterval = 2;
         args->phase = "Slow start";
-        int LastByteSent = 0;
-        int LastByteAcked = 0;
+        args->LastByteSent = 0;
+        args->LastByteAcked = -1;
+        args->cwndIncrmt = args->MSS;
         stringstream stream;
         int squnc_cntr = 0;
         struct header_struct sendg_header(squnc_cntr, squnc_cntr + 1,
@@ -226,7 +249,7 @@ void send_File(void *pnt_Args, const char* pntFilePath, struct header_struct& re
         while (args->LastByteAcked != args->total_file_size) {
             int read_Size, rcvd_Data;
             char read_Buffer[args->MSS];
-            if ((double(clock() - args->begin) / CLOCKS_PER_SEC) > 1.0){
+            if ((double(clock() - args->begin) * 1000 / CLOCKS_PER_SEC) > 10.0){
                 printf("\nDead end cycle avoidance!\n");
                 stringstream stream;
                 struct header_struct sendg_header(args->LastByteSent, args->LastByteSent + read_Size,

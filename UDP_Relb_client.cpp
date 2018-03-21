@@ -188,10 +188,10 @@ int main(int arg_Num, char *args[]) {//){//
         //clock_t end = clock();
         //time_t end;
         //time(&end);
-        //printf("number of received bytes: %d\n", LastByteAcked);
-        //printf("The file was received and elapsed time(msec)is: %2.3f", difftime(end, begin));//double(end - begin) / CLOCKS_PER_SEC);
-	std::cout << "number of received bytes: " << LastByteAcked << std::endl;	
-	std::cout << "The file was received and elapsed time(msec)is: " << (clock() - startTime) << std::endl;
+        printf("number of received bytes: %d\n", LastByteAcked);
+        printf("The file was received and elapsed time(msec)is: %2.3f", double(clock() - startTime) * 1000 / CLOCKS_PER_SEC);
+    	//std::cout << "number of received bytes: " << LastByteAcked << std::endl;	
+    	//std::cout << "The file was received and elapsed time(msec)is: " << double(clock() - startTime)* 1000 / CLOCKS_PER_SEC<< std::endl;
     }
     else if (regex_search(str, m, notFnd_Pttrn)) {
         printf("Server could not find the requested file!\n");
