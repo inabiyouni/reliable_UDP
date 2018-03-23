@@ -8,12 +8,11 @@
 #include <arpa/inet.h>
 #include <regex>
 #include <netdb.h>
-#include <ctime>
 //#include <Windows.h>
-#include <chrono>
-#include <thread>
-#include <ctime>
-#include <cstdlib>
+//#include <chrono>
+//#include <thread>
+//#include <ctime>
+//#include <cstdlib>
 
 using namespace std;
 
@@ -60,26 +59,31 @@ void add_Date(stringstream *stream){
     *stream << crrnt_Time;
 }
 
-int main(int arg_Num, char *args[]) {//){//
-    int clientSocket, rcvd_Data, server_port;
-    int bufsize = atoi(args[6]);
-    char buffer[bufsize];
-    const char *server_host, *connection_type, *connection_order, *filename;// = malloc(bufsize);
-    struct sockaddr_in srvr_Addr, clnt_Addr;
-    struct hostent *hst_Name;
-    socklen_t clnt_Len = sizeof(clnt_Addr);
-    socklen_t srvr_Len = sizeof(srvr_Addr);
+int main(int argc, char *argv[]) {
 
-    server_host = args[1];//"149.160.210.223";//192.168.2.223";//149.160.200.10";//
-    server_port = atoi(args[2]);//15010;//
-    connection_type = "non-persistent";//args[3];//
-    filename = args[3];//"text.txt";//HelloWorld.html";//
-/*
-    server_host = "192.168.2.223";//149.160.210.223";//192.168.2.223";//149.160.200.10";//
-    server_port = 15010;//
-    connection_type = "non-persistent";//
-    filename = "text_1MB.txt";//text_1MB.txt";//HelloWorld.html";//
-*/
+    int sockfd, portno, n;
+    struct sockaddr_in serv_addr;
+    struct hostent *server;
+    socklen_t serv_len;
+    char out_buffer[1000000];
+    char in_buffer[1024];
+    portno = atoi(argv[2]);
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) fprintf(stderr,"ERROR opening socket");
+    server = gethostbyname(argv[1]);
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host\n");
+        exit(0);
+    }
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
+    serv_addr.sin_port = htons(portno);
+
+    const char *server_host, *connection_type, *connection_order, *filename;
+    connection_type = "non-persistent";
+    filename = argv[3];
+
     if (strcmp(connection_type,"persistent") == 0) connection_order = "keep-alive";
     else if (strcmp(connection_type, "non-persistent") == 0) connection_order = "close";
     else{
@@ -87,13 +91,28 @@ int main(int arg_Num, char *args[]) {//){//
         exit(1);
     }
 
-    string zeroTo255 = "(\\d{1,2}|(0|1)\\d{2}|2[0-4]\\d|25[0-5])";
-    string compPattern = zeroTo255 + "\\." + zeroTo255 + "\\." + zeroTo255 + "\\." + zeroTo255;
-    regex pattern(compPattern);//"(\\d{1,3})\.(\\d{1,3})");
+/*
+    int clientSocket, rcvd_Data, server_port;
+    int bufsize = atoi(argv[6]);
+    char buffer[bufsize];
+    const char *server_host, *connection_type, *connection_order, *filename;// = malloc(bufsize);
+    struct sockaddr_in srvr_Addr, clnt_Addr;
+    struct hostent *hst_Name;
+    socklen_t clnt_Len = sizeof(clnt_Addr);
+    socklen_t srvr_Len = sizeof(srvr_Addr);
 
-    //time_t begin;
-    //time(&begin);
-    //clock_t begin = clock();
+    server_host = argv[1];//"149.160.210.223";//192.168.2.223";//149.160.200.10";//
+    server_port = atoi(argv[2]);//15010;//
+    connection_type = "non-persistent";//argv[3];//
+    filename = argv[3];//"text.txt";//HelloWorld.html";//
+
+    if (strcmp(connection_type,"persistent") == 0) connection_order = "keep-alive";
+    else if (strcmp(connection_type, "non-persistent") == 0) connection_order = "close";
+    else{
+        perror("Entered connection type is no valid!");
+        exit(1);
+    }
+
     clock_t startTime = clock(); //Start timer
     if ((clientSocket = socket(AF_INET, SOCK_DGRAM, 0)) > 0){
         printf("The socket was created\n");
@@ -103,7 +122,7 @@ int main(int arg_Num, char *args[]) {//){//
     srvr_Addr.sin_addr.s_addr =inet_addr(server_host);
     srvr_Addr.sin_port = htons(server_port);
 
-    printf("The Server is connected...\n");
+    //printf("The Server is connected...\n");
     stringstream stream;
     string sending_Text;
     int header_size = 22;
@@ -119,13 +138,31 @@ int main(int arg_Num, char *args[]) {//){//
     sprintf(message, "Connection:%s\n", connection_order);
     stream << message;
     add_Date(&stream);
+*/
 
+    //printf("Please enter the message: ");
+    bzero(out_buffer,1000000);
+    sprintf(out_buffer, "%s", argv[3]);
+    printf("Sent: %s\n", out_buffer);
+    //fgets(buffer,256,stdin);
+    serv_len = sizeof(serv_addr);
+    n = sendto(sockfd,out_buffer,strlen(out_buffer),0, (struct sockaddr *)&serv_addr, serv_len);
+    if (n < 0) fprintf(stderr,"ERROR in sendto");
+    //bzero(in_buffer,1024);
+    n = recvfrom(sockfd,out_buffer,strlen(out_buffer), 0, (struct sockaddr *)&serv_addr, &serv_len);
+    if (n < 0) fprintf(stderr,"ERROR in recvfrom");
+    printf("Recieved: %s\n",out_buffer);
+
+
+/*
     sending_Text = stream.str();
-    //printf(sending_Text.c_str());
+    printf(sending_Text.c_str());
     sendto(clientSocket, sending_Text.c_str(), sending_Text.length(),0, (struct sockaddr *)&srvr_Addr, srvr_Len);
 
     bzero(buffer,bufsize);
     rcvd_Data = recvfrom(clientSocket, buffer, bufsize, 0, (struct sockaddr *)&srvr_Addr, &srvr_Len);
+
+
     struct header_struct recvg_header;
     extract_Header(buffer, recvg_header, bufsize);
 
@@ -134,29 +171,30 @@ int main(int arg_Num, char *args[]) {//){//
     regex pat_connct_len("Content-length:.+\n");
     smatch m;
     if (rcvd_Data < 0) perror("ERROR reading from socket");
-    //printf("Here is the server message:\n %s\n", buffer);
+    printf("Here is the server message:\n %s\n", buffer);
     string str(buffer);
     string connection_len;
     if (regex_search(str, m, okay_Pttrn)) {
         regex dblReturn_Pttrn("\\n\\n");
         if (regex_search(str, m, dblReturn_Pttrn))
             memmove (buffer, buffer + m.position(), strlen (buffer));// = buffer(m.position(),str.length());
-        /*
-        if (regex_search(str, m, pat_connct_len)) {
-            connection_len = m.str();
-            connection_len = connection_len.substr(16);
-            connection_len.erase(remove(connection_len.begin(), connection_len.end(), '\n'), connection_len.end());
-        } else connection_len = "1000";
+        
+        //if (regex_search(str, m, pat_connct_len)) {
+        //    connection_len = m.str();
+        //    connection_len = connection_len.substr(16);
+        //    connection_len.erase(remove(connection_len.begin(), connection_len.end(), '\n'), connection_len.end());
+        //} else connection_len = "1000";
         //printf("Here is the received file:\n");
-        */
+        
         int LastByteAcked = 0;
         int rand_drop = 0;
          do{
              rand_drop = rand() % 100 + 1;
              rcvd_Data = recvfrom(clientSocket, buffer , bufsize, 0, (struct sockaddr *)&srvr_Addr, &srvr_Len);
-             std::this_thread::sleep_for(std::chrono::microseconds(atoi(args[5])));
+             //std::this_thread::sleep_for(std::chrono::microseconds(atoi(argv[5])));
              //Sleep(stod(args[5]));
-             if (rcvd_Data > 0  && rand_drop >= atoi(args[4])) {
+	     usleep(stod(argv[5]));
+             if (rcvd_Data > 0  && rand_drop >= atoi(argv[4])) {
                  stringstream stream;
                  //printf("\nreceived header: %.*s\n", header_size, buffer);
                  extract_Header(buffer, recvg_header, bufsize);
@@ -196,6 +234,7 @@ int main(int arg_Num, char *args[]) {//){//
     else if (regex_search(str, m, notFnd_Pttrn)) {
         printf("Server could not find the requested file!\n");
     }
-    close(clientSocket);
+*/
+    //close(clientSocket);
     return 0;
 }

@@ -4,10 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <regex>
 #include <string>
 #include <time.h>
@@ -314,6 +316,7 @@ void send_File(void *pnt_Args, const char* pntFilePath, struct header_struct& re
 }
 
 void *crt_new_Connect(void *pnt_Args) {
+
     struct arg_struct *args = (struct arg_struct *) pnt_Args;
     int *serverSocket = args->skt;// pnt_Socket;
     const char *connection_type = args->str;
@@ -332,7 +335,7 @@ void *crt_new_Connect(void *pnt_Args) {
 
     regex pattern("/.+ HTTP");
     smatch m;
-    //printf("Here is the client message:\n %s\n", buffer);
+    printf("Here is the client message:\n %s\n", buffer);
     string str(buffer);
     if (regex_search(str, m, pattern)) {
         string file_Path = m.str();
@@ -345,7 +348,11 @@ void *crt_new_Connect(void *pnt_Args) {
         }
     }
 }
-int main(int arg_Num, char *args[]) {//){//
+
+
+int main(int argc, char *argv[]) {
+
+/*
     int serverSocket, connectionSocket;
     struct sockaddr_in srvr_Addr, clnt_Addr;
     const char *connection_type, *connection_order;
@@ -360,6 +367,41 @@ int main(int arg_Num, char *args[]) {//){//
     srvr_Addr.sin_addr.s_addr = INADDR_ANY;
     //srvr_Addr.sin_port = htons(atoi(args[1]));//"15010"));//
     srvr_Addr.sin_port = htons(atoi(args[1]));//"15010"));//
+*/
+    const char *connection_type, *connection_order;
+
+    int sockfd, portno;
+    struct hostent *hostp; /* client host info */
+    char *hostaddrp; /* dotted decimal host addr string */
+    char buffer[512];
+    struct sockaddr_in serv_addr, cli_addr;
+    socklen_t clilen = sizeof(cli_addr);
+    int n;
+
+    if (argc < 2) {
+        fprintf(stderr,"ERROR, no port provided\n");
+        exit(1);
+    }
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) 
+        fprintf(stderr,"ERROR opening socket");
+
+    int optval = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, 
+	     (const void *)&optval , sizeof(int));
+
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    portno = atoi(argv[1]);
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = htons(portno);
+    if (bind(sockfd, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) 
+        fprintf(stderr,"ERROR on binding");
+
+    connection_type = "non-persistent";
+    connection_order = "close";
+
+/*    
     if (strcmp(connection_type,"persistent") == 0) connection_order = "keep-alive";
     else if (strcmp(connection_type, "non-persistent") == 0) connection_order = "close";
     else{
@@ -381,14 +423,34 @@ int main(int arg_Num, char *args[]) {//){//
     thrd_Args.str = connection_order;
     thrd_Args.skt = &serverSocket;
     thrd_Args.clnt_Addr = &clnt_Addr;
-    thrd_Args.clnt_Len = &clnt_Len;
+    thrd_Args.clnt_Len = & clnt_Len;
     thrd_Args.rwnd = atoi(args[2]);
     crt_new_Connect((void*) &thrd_Args);
+*/
+    //struct arg_struct thrd_Args;
+    //thrd_Args.str = connection_order;
+    //thrd_Args.skt = &sockfd;
+    //thrd_Args.clnt_Addr = &cli_addr;
+    //thrd_Args.clnt_Len = & clilen;
+    //thrd_Args.rwnd = atoi(argv[2]);
+    //crt_new_Connect((void*) &thrd_Args);
+        
+    
+    bzero(buffer,512);
+    n = recvfrom(sockfd,buffer,512, 0, (struct sockaddr *) &cli_addr, &clilen);
+    if (n < 0) fprintf(stderr,"ERROR reading from socket");
+    hostp = gethostbyaddr((const char *)&cli_addr.sin_addr.s_addr, sizeof(cli_addr.sin_addr.s_addr), AF_INET);
+    if (hostp == NULL) fprintf(stderr,"ERROR on gethostbyaddr");
+    hostaddrp = inet_ntoa(cli_addr.sin_addr);
+    if (hostaddrp == NULL) fprintf(stderr,"ERROR on inet_ntoa\n");
+    printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
+    printf("server received %d/%d bytes: %s\n", strlen(buffer), n, buffer);
+    printf("Here is the message:\n%s",buffer);
 
     //Now join the thread , so that we dont terminate before the thread
     //pthread_join( thread_id , NULL);
     puts("Handler assigned");
-    close(serverSocket);
+    close(sockfd);
     return 0;
 }
 
