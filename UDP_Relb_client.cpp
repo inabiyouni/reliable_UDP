@@ -8,11 +8,21 @@
 #include <arpa/inet.h>
 #include <regex>
 #include <netdb.h>
+<<<<<<< master
 //#include <Windows.h>
 //#include <chrono>
 //#include <thread>
 //#include <ctime>
 //#include <cstdlib>
+=======
+//#include <ctime>
+//#include <Windows.h>
+#include <chrono>
+#include <thread>
+//#include <ctime>
+#include <time.h>
+#include <cstdlib>
+>>>>>>> Removing regex
 
 using namespace std;
 
@@ -95,17 +105,30 @@ int main(int argc, char *argv[]) {
     int clientSocket, rcvd_Data, server_port;
     int bufsize = atoi(argv[6]);
     char buffer[bufsize];
-    const char *server_host, *connection_type, *connection_order, *filename;// = malloc(bufsize);
+    const char *server_host, *filename;// = malloc(bufsize);
     struct sockaddr_in srvr_Addr, clnt_Addr;
     struct hostent *hst_Name;
     socklen_t clnt_Len = sizeof(clnt_Addr);
     socklen_t srvr_Len = sizeof(srvr_Addr);
 
+<<<<<<< master
     server_host = argv[1];//"149.160.210.223";//192.168.2.223";//149.160.200.10";//
     server_port = atoi(argv[2]);//15010;//
     connection_type = "non-persistent";//argv[3];//
     filename = argv[3];//"text.txt";//HelloWorld.html";//
 
+=======
+    server_host = args[1];//"149.160.210.223";//192.168.2.223";//149.160.200.10";//
+    server_port = atoi(args[2]);//15010;//
+    filename = args[3];//"text.txt";//HelloWorld.html";//
+/*
+    server_host = "192.168.2.223";//149.160.210.223";//192.168.2.223";//149.160.200.10";//
+    server_port = 15010;//
+    connection_type = "non-persistent";//
+    filename = "text_1MB.txt";//text_1MB.txt";//HelloWorld.html";//
+*/
+    /*
+>>>>>>> Removing regex
     if (strcmp(connection_type,"persistent") == 0) connection_order = "keep-alive";
     else if (strcmp(connection_type, "non-persistent") == 0) connection_order = "close";
     else{
@@ -113,6 +136,13 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+<<<<<<< master
+=======
+    string zeroTo255 = "(\\d{1,2}|(0|1)\\d{2}|2[0-4]\\d|25[0-5])";
+    string compPattern = zeroTo255 + "\\." + zeroTo255 + "\\." + zeroTo255 + "\\." + zeroTo255;
+    regex pattern(compPattern);//"(\\d{1,3})\.(\\d{1,3})");
+*/
+>>>>>>> Removing regex
     clock_t startTime = clock(); //Start timer
     if ((clientSocket = socket(AF_INET, SOCK_DGRAM, 0)) > 0){
         printf("The socket was created\n");
@@ -131,14 +161,15 @@ int main(int argc, char *argv[]) {
     add_header(sendg_header, stream);
 
     char message[60];
-    sprintf(message, "GET /%s HTTP/1.1\n", filename);
+    sprintf(message, "Filename:%s\n", filename);
     stream << message;
-    sprintf(message, "Host: %s\n", server_host);
+    /*sprintf(message, "Host: %s\n", server_host);
     stream << message;
     sprintf(message, "Connection:%s\n", connection_order);
     stream << message;
     add_Date(&stream);
 */
+<<<<<<< master
 
     //printf("Please enter the message: ");
     bzero(out_buffer,1000000);
@@ -155,6 +186,8 @@ int main(int argc, char *argv[]) {
 
 
 /*
+=======
+>>>>>>> Removing regex
     sending_Text = stream.str();
     printf(sending_Text.c_str());
     sendto(clientSocket, sending_Text.c_str(), sending_Text.length(),0, (struct sockaddr *)&srvr_Addr, srvr_Len);
@@ -166,14 +199,15 @@ int main(int argc, char *argv[]) {
     struct header_struct recvg_header;
     extract_Header(buffer, recvg_header, bufsize);
 
-    regex okay_Pttrn("HTTP/.+ 200 OK");
-    regex notFnd_Pttrn("HTTP/.+ 404 Not Found");
-    regex pat_connct_len("Content-length:.+\n");
+    regex okay_Pttrn("200 OK");
+    regex notFnd_Pttrn("404 Not Found");
+    //regex pat_connct_len("Content-length:.+\n");
     smatch m;
     if (rcvd_Data < 0) perror("ERROR reading from socket");
     printf("Here is the server message:\n %s\n", buffer);
     string str(buffer);
     string connection_len;
+<<<<<<< master
     if (regex_search(str, m, okay_Pttrn)) {
         regex dblReturn_Pttrn("\\n\\n");
         if (regex_search(str, m, dblReturn_Pttrn))
@@ -184,6 +218,18 @@ int main(int argc, char *argv[]) {
         //    connection_len = connection_len.substr(16);
         //    connection_len.erase(remove(connection_len.begin(), connection_len.end(), '\n'), connection_len.end());
         //} else connection_len = "1000";
+=======
+    if (str.substr(0, 6) == "200 OK") {
+        //regex dblReturn_Pttrn("\\n\\n");
+        //if (regex_search(str, m, dblReturn_Pttrn))
+        //    memmove (buffer, buffer + m.position(), strlen (buffer));// = buffer(m.position(),str.length());
+        /*
+        if (regex_search(str, m, pat_connct_len)) {
+            connection_len = m.str();
+            connection_len = connection_len.substr(16);
+            connection_len.erase(remove(connection_len.begin(), connection_len.end(), '\n'), connection_len.end());
+        } else connection_len = "1000";
+>>>>>>> Removing regex
         //printf("Here is the received file:\n");
         
         int LastByteAcked = 0;
@@ -226,12 +272,12 @@ int main(int argc, char *argv[]) {
         //clock_t end = clock();
         //time_t end;
         //time(&end);
-        printf("number of received bytes: %d\n", LastByteAcked);
-        printf("The file was received and elapsed time(msec)is: %2.3f", double(clock() - startTime) * 1000 / CLOCKS_PER_SEC);
-    	//std::cout << "number of received bytes: " << LastByteAcked << std::endl;	
-    	//std::cout << "The file was received and elapsed time(msec)is: " << double(clock() - startTime)* 1000 / CLOCKS_PER_SEC<< std::endl;
+        //printf("number of received bytes: %d\n", LastByteAcked);
+        //printf("The file was received and elapsed time(msec)is: %10.3f\n", double(clock() - startTime) * 1000 / CLOCKS_PER_SEC);
+    	std::cout << "number of received bytes: " << LastByteAcked << std::endl;
+    	std::cout << "The file was received and elapsed time(msec)is: " << (clock() - startTime) / 1000<< std::endl;
     }
-    else if (regex_search(str, m, notFnd_Pttrn)) {
+    else if (str.substr(0, 13) == "404 Not Found") {
         printf("Server could not find the requested file!\n");
     }
 */

@@ -12,6 +12,7 @@
 #include <netdb.h>
 #include <regex>
 #include <string>
+//#include <ctime>
 #include <time.h>
 #include <pthread.h>
 #include <chrono>
@@ -20,7 +21,7 @@ using namespace std;
 //#define auto_init(variable, value) std::decay<decltype(value)>::type variable = value
 
 struct arg_struct{
-    const char *str;
+    //const char *str;
     int* skt;
     struct sockaddr_in* clnt_Addr ;
     socklen_t* clnt_Len;
@@ -33,7 +34,7 @@ struct arg_struct{
     int& ByteforSampleRTT;
     double& DevRTT;
     double& TimeoutInterval;
-    double& sampleRTT;
+    clock_t& sampleRTT;
     double& EstimatedRTT;
     int& ssthresh;
     int& cwndIncrmt;
@@ -51,7 +52,7 @@ struct arg_struct{
     const char* ch = "";
     arg_struct() :buffer(""), buffer_size(0), LastByteSent(a), total_file_size(k), rwnd(l),
                   LastByteAcked(b), cwnd(c), MSS(d), ByteforSampleRTT(f), phase(ch),
-                    sampleRTT(g), EstimatedRTT(h), ssthresh(i), cwndIncrmt(j),
+                    sampleRTT(t1), EstimatedRTT(h), ssthresh(i), cwndIncrmt(j),
                     begin(t1), end(t2), DevRTT(m), TimeoutInterval(n) {}
 };
 struct header_struct{
@@ -96,10 +97,11 @@ void add_Date(stringstream* stream){
     sprintf(crrnt_Time, "Date: %s GMT\n", buffer);
     *stream << crrnt_Time;
 }
-void make_Message(char* message, int leng, const char *connection_type, stringstream &stream){
+void make_Message(char* message, stringstream &stream){
     char msg[60];
-    sprintf(msg, "HTTP/1.1 %s\n", message);
+    sprintf(msg, "%s\n", message);
     stream << msg;
+    /*
     sprintf(msg, "Connection: %s\n", connection_type);
     stream << msg;
     add_Date(&stream);
@@ -110,11 +112,12 @@ void make_Message(char* message, int leng, const char *connection_type, stringst
     stream << "Content-Type: text/html;\n\n";
     sprintf(msg, "<html><body>%s</body></html>", message);
     stream << msg;
+     */
 }
 void *send_data(void *pnt_Args) {
     struct arg_struct *args =(struct arg_struct *) pnt_Args;
     int* skt_Connection =  args -> skt;// pnt_Socket;
-    const char *connection_type = args -> str;
+    //const char *connection_type = args -> str;
     struct sockaddr_in* clnt_Addr = args -> clnt_Addr ;
     socklen_t* clnt_Len = args -> clnt_Len;
     string str = args->buffer;
@@ -123,6 +126,8 @@ void *send_data(void *pnt_Args) {
     sendto(*skt_Connection, str.c_str(), buffer_size, 0,
                        (struct sockaddr *) clnt_Addr, *clnt_Len);
     if (args->ByteforSampleRTT == 0) {
+        //printf("\n start sample RTT\n");
+        //printf(clock());
         args->sampleRTT = clock();
         args->ByteforSampleRTT = args->LastByteSent;
     }
@@ -130,7 +135,7 @@ void *send_data(void *pnt_Args) {
 void* receive_data(void *pnt_Args){
     struct arg_struct *args =(struct arg_struct *) pnt_Args;
     int* skt_Connection =  args -> skt;// pnt_Socket;
-    const char *connection_type = args -> str;
+    //const char *connection_type = args -> str;
     struct sockaddr_in* clnt_Addr = args -> clnt_Addr ;
     socklen_t* clnt_Len = args -> clnt_Len;
     int bufsize = 1024;
@@ -151,7 +156,7 @@ void* receive_data(void *pnt_Args){
                 args->cwnd = args->ssthresh + 3 * args->MSS;
                 printf("\nFast recovery \nNumber of transferred packets: %d\n"
                                "Percentage of transferred packets: %d %%\n"
-                               "EstimatedRTT(mSec): %2.4f \n",
+                               "EstimatedRTT(mSec): %3.4f \n",
                        args->LastByteAcked / args->MSS, 100 * args->LastByteAcked / args->total_file_size, args->EstimatedRTT);
             }
         }
@@ -162,7 +167,7 @@ void* receive_data(void *pnt_Args){
                 args->cwndIncrmt = args->MSS * int(args->MSS / args->cwnd);
                 printf("\nCongestion avoidance \nNumber of transferred packets: %d\n"
                        "Percentage of transferred packets: %d %% \n"
-                               "EstimatedRTT(mSec): %2.4f \n",
+                               "EstimatedRTT(mSec): %3.4f \n",
                        args->LastByteAcked / args->MSS, 100 * args->LastByteAcked / args->total_file_size, args-> EstimatedRTT);
             }
             else if (strcmp(args->phase, "Slow start") == 0){
@@ -172,7 +177,7 @@ void* receive_data(void *pnt_Args){
             //printf("\nLastByteAcked %d ByteforSampleRTT %d is equal %d\n", args->LastByteAcked, args->ByteforSampleRTT, (args->LastByteAcked == args->ByteforSampleRTT));
             if (args->LastByteAcked >= args->ByteforSampleRTT){
                 if (args->LastByteAcked == args->ByteforSampleRTT){
-                    double sampleTime = double(clock() - args->sampleRTT) * 1000 / CLOCKS_PER_SEC;
+                    double sampleTime = double(clock() - args->sampleRTT);// * 1000 / CLOCKS_PER_SEC;
                     if (sampleTime >= args->TimeoutInterval) {
                         args->ssthresh = args->cwnd / 2;
                         args->phase = "Slow start";
@@ -180,13 +185,15 @@ void* receive_data(void *pnt_Args){
                         args->cwndIncrmt = args->MSS;
                         printf("\nSlow start \nNumber of transferred packets: %d\n"
                        "Percentage of transferred packets: %d %% \n"
-                               "EstimatedRTT(mSec): %2.4f \n",
+                               "EstimatedRTT(mSec): %3.4f \n",
                        args->LastByteAcked / args->MSS, 100 * args->LastByteAcked / args->total_file_size, args-> EstimatedRTT);
                     }
                     else{
-                        args->sampleRTT = sampleTime;
-                        args->EstimatedRTT = 0.875 * args->EstimatedRTT + 0.125 * args->sampleRTT;
-                        args->DevRTT = 0.75 * args->DevRTT + 0.25 * abs(args->sampleRTT - args->EstimatedRTT);
+                        //cout<< "\nupdate RTT\n"<<  sampleTime<< endl;
+                        //printf(double(clock() - args->sampleRTT));
+                        //args->sampleRTT = sampleTime;
+                        args->EstimatedRTT = 0.875 * args->EstimatedRTT + 0.125 * sampleTime;
+                        args->DevRTT = 0.75 * args->DevRTT + 0.25 * abs(sampleTime - args->EstimatedRTT);
                         args->TimeoutInterval = args->EstimatedRTT + 4 * args->DevRTT;
                     }
                 }
@@ -200,7 +207,7 @@ void* receive_data(void *pnt_Args){
 void send_File(void *pnt_Args, const char* pntFilePath, struct header_struct& recvg_header) {
     struct arg_struct *args =(struct arg_struct *) pnt_Args;
     int* skt_Connection =  args -> skt;// pnt_Socket;
-    const char *connection_type = args -> str;
+    //const char *connection_type = args -> str;
     struct sockaddr_in* clnt_Addr = args -> clnt_Addr ;
     socklen_t* clnt_Len = args -> clnt_Len;
     string sending_Text;
@@ -210,7 +217,7 @@ void send_File(void *pnt_Args, const char* pntFilePath, struct header_struct& re
         struct header_struct sendg_header(recvg_header.squnc_number, recvg_header.ack_number,
                                         recvg_header.ack_flag, recvg_header.fin_flag);
         add_header(sendg_header, stream);
-        make_Message("404 Not Found", 39, connection_type, stream);
+        make_Message("404 Not Found", stream);
         sending_Text = stream.str();
         sendto(*skt_Connection, sending_Text.c_str(), sending_Text.length(), 0, (struct sockaddr *) clnt_Addr, *clnt_Len);
     }
@@ -221,8 +228,8 @@ void send_File(void *pnt_Args, const char* pntFilePath, struct header_struct& re
         args->MSS = 1500 - 68 - headerSize;
         args->ssthresh = 64000;
         args->cwnd = args->MSS;
-        args->EstimatedRTT = 2;
-        args->TimeoutInterval = 2;
+        args->EstimatedRTT = 10;
+        args->TimeoutInterval = 10;
         args->phase = "Slow start";
         args->LastByteSent = 0;
         args->LastByteAcked = -1;
@@ -240,7 +247,7 @@ void send_File(void *pnt_Args, const char* pntFilePath, struct header_struct& re
         //if (sending_File == NULL) return;
         //fseek(sending_File, 0L, SEEK_END);
         args->total_file_size = strlen(sending_File);
-        make_Message("200 OK", args->total_file_size, connection_type, stream);
+        make_Message("200 OK", stream);
         //fseek(sending_File, 0L, SEEK_SET);
         fpos_t position;
         sending_Text = stream.str();
@@ -319,7 +326,7 @@ void *crt_new_Connect(void *pnt_Args) {
 
     struct arg_struct *args = (struct arg_struct *) pnt_Args;
     int *serverSocket = args->skt;// pnt_Socket;
-    const char *connection_type = args->str;
+    //const char *connection_type = args->str;
     struct sockaddr_in *clnt_Addr = args->clnt_Addr;
     socklen_t *clnt_Len = args->clnt_Len;
     int rcvd_Data;
@@ -333,13 +340,22 @@ void *crt_new_Connect(void *pnt_Args) {
     struct header_struct recvg_header;
     extract_Header(buffer, recvg_header, bufsize);
 
-    regex pattern("/.+ HTTP");
+    regex pattern("Filename:.*\n");
     smatch m;
+<<<<<<< master
     printf("Here is the client message:\n %s\n", buffer);
     string str(buffer);
     if (regex_search(str, m, pattern)) {
         string file_Path = m.str();
         file_Path = file_Path.substr(1, file_Path.size() - 6);
+=======
+    //printf("Here is the client message:\n%s\n", buffer);
+    string file_Path(buffer);
+    if (file_Path.substr(0, 9) == "Filename:"){ //(regex_search(str, m, pattern)) {
+        //string file_Path = m.str();
+        file_Path = file_Path.substr(9, file_Path.size() - 10);
+        //printf("file Path:%s\n",file_Path.c_str());
+>>>>>>> Removing regex
         if (access(file_Path.c_str(), F_OK) != -1) {
             send_File(pnt_Args, file_Path.c_str(), recvg_header);
         } else {
@@ -355,18 +371,19 @@ int main(int argc, char *argv[]) {
 /*
     int serverSocket, connectionSocket;
     struct sockaddr_in srvr_Addr, clnt_Addr;
-    const char *connection_type, *connection_order;
+    //const char *connection_type, *connection_order;
     socklen_t clnt_Len = sizeof(clnt_Addr);
 
-    if ((serverSocket = socket(AF_INET, SOCK_DGRAM, 0)) > 0){
+    if ((serverSocket = socket(AF_INET, SOCK_DGRAM, 0)) > 0) {
         printf("The socket was created\n");
     }
 
-    connection_type = "non-persistent";//args[2];//
+    //connection_type = "non-persistent";//args[2];//
     srvr_Addr.sin_family = AF_INET;
     srvr_Addr.sin_addr.s_addr = INADDR_ANY;
     //srvr_Addr.sin_port = htons(atoi(args[1]));//"15010"));//
     srvr_Addr.sin_port = htons(atoi(args[1]));//"15010"));//
+<<<<<<< master
 */
     const char *connection_type, *connection_order;
 
@@ -402,29 +419,33 @@ int main(int argc, char *argv[]) {
     connection_order = "close";
 
 /*    
+=======
+    /*
+>>>>>>> Removing regex
     if (strcmp(connection_type,"persistent") == 0) connection_order = "keep-alive";
     else if (strcmp(connection_type, "non-persistent") == 0) connection_order = "close";
     else{
         perror("Entered connection type is no valid!");
         exit(1);
     }
-
-    if (bind(serverSocket, (struct sockaddr *) &srvr_Addr, sizeof(srvr_Addr)) == 0){
+*/
+    if (bind(serverSocket, (struct sockaddr *) &srvr_Addr, sizeof(srvr_Addr)) == 0) {
         printf("Binding Socket\n");
     }
 
-    if (serverSocket < 0 ) {
+    if (serverSocket < 0) {
         perror("server cannot connect to client");
         exit(1);
     }
     printf("\nNew Client connection...\n");
 
     struct arg_struct thrd_Args;
-    thrd_Args.str = connection_order;
+    //thrd_Args.str = connection_order;
     thrd_Args.skt = &serverSocket;
     thrd_Args.clnt_Addr = &clnt_Addr;
     thrd_Args.clnt_Len = & clnt_Len;
     thrd_Args.rwnd = atoi(args[2]);
+<<<<<<< master
     crt_new_Connect((void*) &thrd_Args);
 */
     //struct arg_struct thrd_Args;
@@ -446,11 +467,20 @@ int main(int argc, char *argv[]) {
     printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
     printf("server received %d/%d bytes: %s\n", strlen(buffer), n, buffer);
     printf("Here is the message:\n%s",buffer);
+=======
+    crt_new_Connect((void *) &thrd_Args);
+>>>>>>> Removing regex
 
     //Now join the thread , so that we dont terminate before the thread
     //pthread_join( thread_id , NULL);
     puts("Handler assigned");
+<<<<<<< master
     close(sockfd);
     return 0;
+=======
+    close(serverSocket);
+
+        return 0;
+>>>>>>> Removing regex
 }
 
